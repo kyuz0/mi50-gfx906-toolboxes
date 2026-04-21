@@ -1,0 +1,54 @@
+diff --git a/third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h b/third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h
+index 9c743fe..71c01c8 100644
+--- a/third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h
++++ b/third_party/amd/include/TritonAMDGPUToLLVM/TargetUtils.h
+@@ -8,6 +8,7 @@ namespace mlir::triton::AMD {
+ // A list of ISA families we care about.
+ enum class ISAFamily {
+   Unknown,
++  VEGA10,
+   VEGA20,
+   CDNA1,
+   CDNA2,
+diff --git a/third_party/amd/lib/TritonAMDGPUToLLVM/TargetInfo.cpp b/third_party/amd/lib/TritonAMDGPUToLLVM/TargetInfo.cpp
+index 7e6d1f2..983db4a 100644
+--- a/third_party/amd/lib/TritonAMDGPUToLLVM/TargetInfo.cpp
++++ b/third_party/amd/lib/TritonAMDGPUToLLVM/TargetInfo.cpp
+@@ -71,6 +71,7 @@ llvm::AMDGPU::GPUKind TargetInfo::getGPUKind() const {
+ 
+ int TargetInfo::getWarpSize() const {
+   switch (getISAFamily()) {
++  case ISAFamily::VEGA10:
+   case ISAFamily::VEGA20:
+   case ISAFamily::CDNA1:
+   case ISAFamily::CDNA2:
+@@ -641,6 +642,7 @@ bool TargetInfo::requiresAliasInfoForAsyncOps() const {
+ 
+ bool TargetInfo::supportsDirectToLdsLoadBitWidth(int bitWidth) const {
+   switch (getISAFamily()) {
++  case ISAFamily::VEGA10:
+   case ISAFamily::VEGA20:
+   case ISAFamily::CDNA3:
+     // Disable 8 and 16 bits because they get extended to 32 bit.
+diff --git a/third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp b/third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp
+index 71a6dd4..4279a63 100644
+--- a/third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp
++++ b/third_party/amd/lib/TritonAMDGPUToLLVM/TargetUtils.cpp
+@@ -14,6 +14,9 @@ ISAFamily deduceISAFamily(llvm::StringRef arch) {
+ 
+   // CDNA ISA cases
+   switch (kind) {
++  case llvm::AMDGPU::GK_GFX900:
++  case llvm::AMDGPU::GK_GFX902:
++    return ISAFamily::VEGA10;
+   case llvm::AMDGPU::GK_GFX950:
+     return ISAFamily::CDNA4;
+   case llvm::AMDGPU::GK_GFX942:
+@@ -60,6 +63,7 @@ bool supportsVDot(llvm::StringRef arch) {
+ 
+ bool isCDNA(ISAFamily isaFamily) {
+   switch (isaFamily) {
++  case AMD::ISAFamily::VEGA10:
+   case AMD::ISAFamily::VEGA20:
+   case ISAFamily::CDNA1:
+   case ISAFamily::CDNA2:

@@ -1,0 +1,22 @@
+#/bin/bash
+
+pushd $(dirname ${BASH_SOURCE[0]})
+
+if [ "$LLAMA_IMAGE" == "" ]; then
+  LLAMA_IMAGE=docker.io/kyuz0/llama.cpp-gfx906
+  #LLAMA_IMAGE=registry.arkprojects.space/apps/llama.cpp-gfx906
+fi
+
+# rocm ver
+if [ "$LLAMA_ROCM_VERSION" == "" ]; then
+  LLAMA_ROCM_VERSION=7.2.1
+fi
+
+if [ "$LLAMA_GIT_REF" == "" ]; then
+  LLAMA_GIT_REF="$(git_get_current_tag submodules/llama.cpp)"
+fi
+if [ "$LLAMA_GIT_REF" == "" ]; then
+  LLAMA_GIT_REF="$(git_get_current_sha submodules/llama.cpp)"
+fi
+
+popd

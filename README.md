@@ -1,10 +1,10 @@
-# AMD MI25 (gfx900) AI Toolboxes
+# AMD MI50 (gfx906) AI Toolboxes
 
-This project provides containers with a software stack to run AI workflows on AMD Radeon Instinct MI25 (`gfx900`) hardware. By leveraging the Linux `toolbox` utility, these setups isolate ROCm and Python dependencies without restricting you to a rigid container structure. 
+This project provides containers with a software stack to run AI workflows on AMD Radeon Instinct MI50 (`gfx906`) hardware. By leveraging the Linux `toolbox` utility, these setups isolate ROCm and Python dependencies without restricting you to a rigid container structure. 
 
 ## Hardware Profile
 The environments and benchmarks in this repository were tested on a system with the following specifications:
-- **GPUs:** 4x AMD Radeon Instinct MI25 (16GB VRAM, 220W TDP)
+- **GPUs:** 1x AMD Radeon Instinct MI50 (32GB VRAM, 300W TDP)
 - **CPU:** 1x Dual Intel Xeon Gold 6150 (36 cores / 72 threads) @ 2.70GHz
 - **RAM:** 64GB DDR4
 - **Host OS:** Fedora 43 (Kernel `6.19.9-200.fc43.x86_64`)
@@ -35,23 +35,23 @@ When you enter a toolbox:
 
 ### 1. `llama.cpp`
 Used for running GGUF-quantized LLMs. 
-- **Registry:** `docker.io/kyuz0/llamacpp-toolbox-gfx900:rocm-6.4.4` (also available for `7.2.1`)
+- **Registry:** `docker.io/kyuz0/llamacpp-toolbox-gfx906:rocm-6.4.4` (also available for `7.2.1`)
 
 ### 2. `vllm`
-API backend for serving LLMs. Built using custom Triton patches to support `gfx900`.
-- **Registry:** `docker.io/kyuz0/vllm-toolbox-gfx900:0.19.1-rocm-7.2.1-aiinfos` (version specific)
+API backend for serving LLMs. Built using custom Triton patches to support `gfx906`.
+- **Registry:** `docker.io/kyuz0/vllm-toolbox-gfx906:0.19.1-rocm-7.2.1-aiinfos` (version specific)
 
 ### 3. `comfyui`
-GUI frontend for image generation. Configured with the `lowvram` preset to fit Qwen-Image and other models inside the MI25's 16GB VRAM limit.
-- **Registry:** `docker.io/kyuz0/comfy-toolbox-gfx900:latest`
+GUI frontend for image generation. Configured with the `lowvram` preset to fit Qwen-Image and other models inside the MI50's 32GB VRAM limit.
+- **Registry:** `docker.io/kyuz0/comfy-toolbox-gfx906:latest`
 
 ### 4. `pytorch`
 Base environment containing ROCm PyTorch builds (`v2.11`, `v2.10`, etc.) for custom script execution.
-- **Registry:** `docker.io/kyuz0/pytorch-toolbox-gfx900:v2.11.0-rocm-7.2.1` (version specific)
+- **Registry:** `docker.io/kyuz0/pytorch-toolbox-gfx906:v2.11.0-rocm-7.2.1` (version specific)
 
 ### 5. `rocm`
 The foundation containing AMD drivers and compiler kernels. The other toolboxes depend on contexts built from this image.
-- **Registry:** `docker.io/kyuz0/rocm-toolbox-gfx900:7.2.1` (version specific)
+- **Registry:** `docker.io/kyuz0/rocm-toolbox-gfx906:7.2.1` (version specific)
 
 ---
 
@@ -65,7 +65,7 @@ cd llama.cpp
 ```
 2. **Enter Toolbox:**
 ```bash
-toolbox enter llama-gfx900-rocm7-2-1
+toolbox enter llama-gfx906-rocm7-2-1
 ```
 3. **Download Models:**
 Use the provided script to download models explicitly to your mapped host directory.
@@ -85,7 +85,7 @@ cd vllm
 ```
 2. **Enter Toolbox:**
 ```bash
-toolbox enter vllm-gfx900-0.19.1-rocm7-2-1
+toolbox enter vllm-gfx906-0.19.1-rocm7-2-1
 ```
 3. **Download Models:**
 You can pre-fetch weights via the adjacent `llama.cpp` script, or allow vLLM to fetch them dynamically at runtime.
@@ -103,7 +103,7 @@ cd comfyui
 ```
 2. **Enter Toolbox:**
 ```bash
-toolbox enter comfy-gfx900-latest
+toolbox enter comfy-gfx906-latest
 ```
 
 3. **Set Model Paths (First Time Only):**
@@ -125,7 +125,7 @@ start-comfy
 
 ## Benchmarks
 
-These numbers are included for transparency regarding performance on the 4x MI25 configuration. The differences between ROCm versions are small and provided for reference.
+These numbers are included for transparency regarding performance on the 1x MI50 configuration. The differences between ROCm versions are small and provided for reference.
 
 ### Llama.cpp (ROCm PP512 / TG128)
 | Model | Size | ROCm | NGL | FA | PP512 (t/s) | TG128 (t/s) |
