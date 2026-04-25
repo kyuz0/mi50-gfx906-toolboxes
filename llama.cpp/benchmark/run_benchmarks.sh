@@ -53,20 +53,15 @@ for MODEL_PATH in "${MODEL_PATHS[@]}"; do
     MODEL_SIZE=$(stat -c%s "$MODEL_PATH")
   fi
 
-  # Threshold increments of ~14 GiB (approx 15000000000 bytes).
-  if (( MODEL_SIZE > 45000000000 )); then
-    GPU_DEVICES="0,1,2,3"
-    GPU_SUFFIX="__quad"
-  elif (( MODEL_SIZE > 30000000000 )); then
-    GPU_DEVICES="0,1,2"
-    GPU_SUFFIX="__triple"
-  elif (( MODEL_SIZE > 15000000000 )); then
-    GPU_DEVICES="0,1"
-    GPU_SUFFIX="__dual"
-  else
-    GPU_DEVICES="0"
-    GPU_SUFFIX="__single"
+  # Leave at least ~6 GiB for ROCm overhead and long contexts (32K+ requires a few GBs of KV cache).
+  # 27,500,000,000 bytes = ~25.6 GiB
+  if (( MODEL_SIZE > 27500000000 )); then
+    echo "⏭️  Skipping $MODEL_NAME, size ($((MODEL_SIZE / 1024 / 1024 / 1024)) GB) leaves insufficient room on a 32GB GPU for long context."
+    continue
   fi
+
+  GPU_DEVICES="0"
+  GPU_SUFFIX="__single"
 
   for ENV in "${!CMDS[@]}"; do
     CMD="${CMDS[$ENV]}"
