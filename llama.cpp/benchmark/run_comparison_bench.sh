@@ -60,8 +60,9 @@ for MODEL_PATH in "${MODEL_PATHS[@]}"; do
     continue
   fi
 
-  GPU_DEVICES="0"
-  GPU_SUFFIX="__single"
+  # The R9700 is mounted on PCI slot 1 (GPU 1)
+  GPU_DEVICES="1"
+  GPU_SUFFIX="__r9700"
 
   for ENV in "${!CMDS[@]}"; do
     CMD="${CMDS[$ENV]}"
