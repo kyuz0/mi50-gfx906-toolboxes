@@ -87,7 +87,7 @@ for MODEL_PATH in "${MODEL_PATHS[@]}"; do
         fi
 
         OUT="$RESULTDIR/${MODEL_NAME}__${ENV}${SUFFIX}${CTX_SUFFIX}${GPU_SUFFIX}.log"
-        CTX_REPS=3
+        CTX_REPS=5
         if [[ "$CTX" == longctx* ]]; then
           CTX_REPS=1
         fi
