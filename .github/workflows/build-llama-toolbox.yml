@@ -36,7 +36,7 @@ jobs:
           context: ./llama.cpp/
           file: ./llama.cpp/toolbox.llama.Dockerfile
           push: true
-          tags: docker.io/kyuz0/llamacpp-toolbox-gfx900:rocm-${{ matrix.rocm_version }}
+          tags: docker.io/kyuz0/llamacpp-toolbox-gfx906:rocm-${{ matrix.rocm_version }}
           build-args: |
             ROCM_VERSION=${{ matrix.rocm_version }}
-            ROCM_DOCKER_ARCH=gfx900
+            ROCM_DOCKER_ARCH=gfx906
