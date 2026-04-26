@@ -104,6 +104,7 @@ RUN pip3 install ninja packaging wheel pybind11 psutil
 # Build
 ARG MAX_JOBS
 RUN MAX_JOBS=${MAX_JOBS:-$(nproc)} \
+    FLASH_ATTENTION_SKIP_CK_BUILD=FALSE \
     python -m build --wheel --no-isolation --outdir /dist
 RUN pip3 install /dist/flash_attn-*.whl
 RUN ls /dist

@@ -16,8 +16,8 @@ HOST     = "127.0.0.1"
 
 
 # 1. THROUGHPUT CONFIG
-OFF_NUM_PROMPTS      = 100  # 100 is enough for stable throughput measurement
-OFF_FORCED_OUTPUT    = "128"  # Short outputs — we're measuring tok/s, not generation quality
+OFF_NUM_PROMPTS      = 1000  # 1000 is enough for stable throughput measurement
+OFF_FORCED_OUTPUT    = "512"  # Short outputs — we're measuring tok/s, not generation quality
 # Default fallback if not specified in MODEL_TABLE
 DEFAULT_BATCH_TOKENS = "8192"
 
@@ -39,72 +39,25 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 def log(msg): print(f"\n[BENCH] {msg}")
 
-def patch_prefix_prefill_for_vega10():
-    """🚨 CRITICAL MI50 FIX: Patch the V1 ROCm attention Triton kernel block sizes.
-    
-    The V1 engine's rocm_attn.py unconditionally calls chunked_prefill_paged_decode(),
-    which invokes _fwd_kernel in prefix_prefill.py. That kernel hardcodes BLOCK_M=128
-    for power-of-2 block sizes, producing 81920 bytes of shared memory — exceeding
-    Vega10's 64KB (65536 byte) LDS hardware limit.
-    
-    This patch reduces BLOCK_M from 128 to 64, halving the shared memory footprint
-    to fit within the physical limit. This is safe — it trades some throughput for
-    correctness on legacy hardware.
-    """
-    target = Path("/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/ops/prefix_prefill.py")
-    if not target.exists():
-        log("WARNING: prefix_prefill.py not found — skipping Vega10 LDS patch")
-        return
-    
-    src = target.read_text()
-    
-    # Check if already patched
-    if "BLOCK_M = 64" in src and "# PATCHED for Vega10" in src:
-        log("prefix_prefill.py already patched for Vega10 LDS limit")
-        return
-    
-    # The exact code block we need to change (lines 792-797 in source):
-    #   if is_pow2:
-    #       BLOCK_M = 128
-    #       BLOCK_N = 64
-    old = """\
-    if is_pow2:
-        BLOCK_M = 128
-        BLOCK_N = 64"""
-    
-    new = """\
-    if is_pow2:
-        BLOCK_M = 64  # PATCHED for Vega10: 128→64 to fit 64KB LDS limit
-        BLOCK_N = 64"""
-    
-    if old not in src:
-        log("WARNING: Could not find BLOCK_M=128 pattern in prefix_prefill.py — file may have changed")
-        return
-    
-    patched = src.replace(old, new)
-    target.write_text(patched)
-    log("✅ PATCHED prefix_prefill.py: BLOCK_M 128→64 for Vega10 64KB LDS limit")
-
 def get_gpu_count():
+    """Detects AMD GPUs, respecting HIP_VISIBLE_DEVICES or CUDA_VISIBLE_DEVICES."""
+    for env_var in ["HIP_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES"]:
+        if env_var in os.environ:
+            val = os.environ[env_var].strip()
+            if val:
+                return len(val.split(","))
+
     try:
-        # Using rocm-smi --showid to list GPUs. 
-        # Output format: "GPU[0] : Device Name: ..."
-        res = subprocess.run(["rocm-smi", "--showid"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        res = subprocess.run(["rocm-smi", "--showid", "--csv"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if res.returncode == 0:
-            # Filter specifically for the target GPU as requested
-            target_gpu = "AMD Radeon Instinct MI50"
-            count = 0
-            for line in res.stdout.strip().split('\n'):
-                if "Device Name" in line and target_gpu in line:
-                    count += 1
-            
-            return count if count > 0 else 4
-        else:
-            log("rocm-smi failed, defaulting to 4 GPUs (Hardcoded Fallback)")
-            return 4
-    except Exception as e:
-        log(f"Error detecting GPUs: {e}, defaulting to 4 GPUs")
-        return 4
+            count = res.stdout.count("GPU")
+            if count > 0: return count
+    except: pass
+    
+    try:
+        return len(list(Path("/dev/dri").glob("renderD*")))
+    except:
+        return 1
 
 def kill_vllm():
     subprocess.run("pgrep -f 'vllm serve' | xargs -r kill -9", 
@@ -170,80 +123,93 @@ def get_model_args(model, tp_size):
     if config.get("enforce_eager"): cmd.append("--enforce-eager")
     if config.get("language_model_only"): cmd.append("--language-model-only")
     
-    return cmd
-
-def run_throughput(model, tp_size):
+def run_throughput(model, tp_size, backend_name="Default", output_dir=RESULTS_DIR, extra_env=None):
     if tp_size not in MODEL_TABLE[model]["valid_tp"]: return
     
     model_safe = model.replace("/", "_")
-    output_file = RESULTS_DIR / f"{model_safe}_tp{tp_size}_throughput.json"
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+    
+    output_file = output_dir_path / f"{model_safe}_tp{tp_size}_throughput.json"
     
     if output_file.exists():
-        log(f"SKIP Throughput {model} (TP={tp_size})")
+        log(f"SKIP {model} (TP={tp_size} | {backend_name})")
         return
 
     dataset_path = get_dataset()
     dataset_args = ["--dataset-name", "sharegpt", "--dataset-path", dataset_path] if dataset_path else ["--input-len", "1024"]
     
-    # Retrieve Model-Specific Batch Tokens
     batch_tokens = MODEL_TABLE[model].get("max_tokens", DEFAULT_BATCH_TOKENS)
 
-    log(f"START Throughput {model} (TP={tp_size}) [Batch: {batch_tokens}]...")
+    log(f"START {model} (TP={tp_size} | {backend_name}) [Batch: {batch_tokens}]...")
     kill_vllm()
     nuke_vllm_cache()
 
     cmd = ["vllm", "bench", "throughput"] + get_model_args(model, tp_size)
     cmd.extend([
         "--num-prompts", str(OFF_NUM_PROMPTS),
-        "--max-num-batched-tokens", batch_tokens,
+        "--max-num-batched-tokens", str(batch_tokens),
         "--output-len", OFF_FORCED_OUTPUT,
         "--output-json", str(output_file),
         "--disable-log-stats"
     ])
     cmd.extend(dataset_args)
 
-    # ENV Setup: Global + Model Specific
+    if backend_name == "AITER-Attn":
+        cmd.extend(["--attention-backend", "ROCM_ATTN"])
+    elif backend_name == "ROCm-Attn":
+        cmd.extend(["--attention-backend", "ROCM_ATTN"])
+    else:
+        cmd.extend(["--attention-backend", "TRITON_ATTN"])
+
     env = os.environ.copy()
     
-    # ⚡️ TRITON PERFORMANCE UNLOCK: Enable the custom patched Flash Attention!
-    # Without this flag explicitly cast, vLLM will fall back to sluggish, standard PyTorch Math SDPA 
-    # instead of dynamically hooking the optimized triton flash attention backend from the toolbox.
-    env["FLASH_ATTENTION_TRITON_AMD_ENABLE"] = "TRUE"
+    if extra_env:
+        env.update(extra_env)
+    elif backend_name == "Triton-Attn":
+        env["FLASH_ATTENTION_TRITON_AMD_ENABLE"] = "TRUE"
 
-    # Inject model specific env vars (e.g. for AWQ)
     model_env = MODEL_TABLE[model].get("env", {})
     env.update(model_env)
 
     try: 
         subprocess.run(cmd, check=True, env=env)
     except subprocess.CalledProcessError as e:
-        log(f"ERROR: Throughput failed {model} (exit code {e.returncode})")
+        log(f"ERROR: Failed {model} [{backend_name}] (exit code {e.returncode})")
     except Exception as e:
-        log(f"ERROR: Throughput failed {model}: {type(e).__name__}: {e}")
-        log(f"CMD was: {' '.join(cmd)}")
-
-
+        log(f"ERROR: Failed {model} [{backend_name}]: {type(e).__name__}: {e}")
 
 def print_summary(tps):
-    print(f"\n{'MODEL':<40} | {'TP':<2} | {'TOK/S':<8}")
-    print("-" * 60)
+    print(f"\n{'MODEL':<40} | {'TP':<2} | {'Triton':<8} | {'ROCm':<8} | {'AITER':<8}")
+    print("-" * 80)
     
     for m in MODELS_TO_RUN:
         msafe = m.replace("/", "_")
+        name_cell = m.split('/')[-1]
+        
         for tp in tps:
             if tp not in MODEL_TABLE[m]["valid_tp"]: continue
             
-            try: 
-                tdata = json.loads((RESULTS_DIR / f"{msafe}_tp{tp}_throughput.json").read_text())
-                tok_s = f"{tdata.get('tokens_per_second', 0):.1f}"
-            except: tok_s = "N/A"
+            prefix = f"{msafe}_tp{tp}"
+            
+            def get_tok(path):
+                try:
+                    if path.exists():
+                        d = json.loads(path.read_text())
+                        return f"{d.get('tokens_per_second', 0):.1f}"
+                    return "N/A"
+                except: return "N/A"
 
-            print(f"{m.split('/')[-1]:<40} | {tp:<2} | {tok_s:<8}")
-    print("-" * 60)
+            val1 = get_tok((RESULTS_DIR / "triton") / f"{prefix}_throughput.json")
+            val2 = get_tok((RESULTS_DIR / "rocm") / f"{prefix}_throughput.json")
+            val3 = get_tok((RESULTS_DIR / "aiter") / f"{prefix}_throughput.json")
+
+            print(f"{name_cell:<40} | {tp:<2} | {val1:<8} | {val2:<8} | {val3:<8}")
+    print("-" * 80)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tp", type=int, nargs="+", default=[2, 4])
+    parser.add_argument("--tp", type=int, nargs="+", default=[1])
     args = parser.parse_args()
     
     gpu_count = get_gpu_count()
@@ -254,10 +220,6 @@ if __name__ == "__main__":
         log(f"Requested TP={args.tp} but only {gpu_count} GPU(s) detected. Nothing to run.")
         sys.exit(0)
 
-    # 🚨 Apply Vega10 kernel patch BEFORE any benchmarks
-    patch_prefix_prefill_for_vega10()
-    
-    # Nuke Triton cache AND vLLM torch compile cache so patched kernels get recompiled
     triton_cache = Path.home() / ".triton" / "cache"
     vllm_cache = Path.home() / ".cache" / "vllm" / "torch_compile_cache"
     for cache_dir in [triton_cache, vllm_cache]:
@@ -268,5 +230,8 @@ if __name__ == "__main__":
     kill_vllm()
     for tp in valid_tp_args:
         for m in MODELS_TO_RUN:
-            run_throughput(m, tp)
+            run_throughput(m, tp, "Triton-Attn", RESULTS_DIR / "triton")
+            run_throughput(m, tp, "ROCm-Attn", RESULTS_DIR / "rocm")
+            run_throughput(m, tp, "AITER-Attn", RESULTS_DIR / "aiter", {"VLLM_ROCM_USE_AITER": "1"})
+            
     print_summary(valid_tp_args)
