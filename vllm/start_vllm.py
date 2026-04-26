@@ -84,8 +84,6 @@ def configure_and_launch(model_idx, gpu_count):
     current_util = float(config.get("gpu_util", GPU_UTIL))
     use_eager = config.get("enforce_eager", False)
     clear_cache = False
-    attn_backends = ["Triton", "ROCm (CK)", "AITER"]
-    current_attn_backend = "Triton"
     
     name = model_id.split("/")[-1]
     
@@ -101,10 +99,9 @@ def configure_and_launch(model_idx, gpu_count):
             "2", f"Concurrent Requests:  {current_seqs}",
             "3", f"Context Length:       {current_ctx}",
             "4", f"GPU Utilization:      {current_util}",
-            "5", f"Attention Backend:    {current_attn_backend}",
-            "6", f"Erase vLLM Cache:     {cache_status}",
-            "7", f"Force Eager Mode:     {eager_status}",
-            "8", "LAUNCH SERVER"
+            "5", f"Erase vLLM Cache:     {cache_status}",
+            "6", f"Force Eager Mode:     {eager_status}",
+            "7", "LAUNCH SERVER"
         ]
         
         choice = run_dialog(menu_args)
@@ -123,13 +120,10 @@ def configure_and_launch(model_idx, gpu_count):
             new_util = run_dialog(["--title", "GPU Utilization", "--inputbox", "GPU Memory Utilization (0.1 - 1.0):", "10", "40", str(current_util)])
             if new_util: current_util = float(new_util)
         elif choice == "5":
-            idx = attn_backends.index(current_attn_backend)
-            current_attn_backend = attn_backends[(idx + 1) % len(attn_backends)]
-        elif choice == "6":
             clear_cache = not clear_cache
-        elif choice == "7":
+        elif choice == "6":
             use_eager = not use_eager
-        elif choice == "8":
+        elif choice == "7":
             break
             
     # Build Command
@@ -155,25 +149,15 @@ def configure_and_launch(model_idx, gpu_count):
     # Env Vars
     env = os.environ.copy()
     
-    if current_attn_backend == "AITER":
-        env["VLLM_ROCM_USE_AITER"] = "1"
-        if "FLASH_ATTENTION_TRITON_AMD_ENABLE" in env: del env["FLASH_ATTENTION_TRITON_AMD_ENABLE"]
-        cmd.extend(["--attention-backend", "ROCM_ATTN"])
-    elif current_attn_backend == "ROCm (CK)":
-        if "VLLM_ROCM_USE_AITER" in env: del env["VLLM_ROCM_USE_AITER"]
-        if "FLASH_ATTENTION_TRITON_AMD_ENABLE" in env: del env["FLASH_ATTENTION_TRITON_AMD_ENABLE"]
-        cmd.extend(["--attention-backend", "ROCM_ATTN"])
-    else: # Triton
-        if "VLLM_ROCM_USE_AITER" in env: del env["VLLM_ROCM_USE_AITER"]
-        env["FLASH_ATTENTION_TRITON_AMD_ENABLE"] = "TRUE"
-        cmd.extend(["--attention-backend", "TRITON_ATTN"])
+    env["FLASH_ATTENTION_TRITON_AMD_ENABLE"] = "TRUE"
+    cmd.extend(["--attention-backend", "TRITON_ATTN"])
 
     env.update(config.get("env", {}))
     
     print("\n" + "="*60)
     print(f" Launching: {name}")
     print(f" Config:    TP={current_tp} | Seqs={current_seqs} | Ctx={current_ctx} | Util={current_util} | Eager={use_eager}")
-    print(f" Backend:   {current_attn_backend}")
+    print(f" Backend:   Triton (Hardware Optimization)")
     if clear_cache:
         print(f" Action:    Clearing vLLM Cache (~/.cache/vllm)")
     print(f" Command:   {' '.join(cmd)}")

@@ -16,7 +16,7 @@ HOST     = "127.0.0.1"
 
 
 # 1. THROUGHPUT CONFIG
-OFF_NUM_PROMPTS      = 1000  # 1000 is enough for stable throughput measurement
+OFF_NUM_PROMPTS      = 500  # 1000 is enough for stable throughput measurement
 OFF_FORCED_OUTPUT    = "512"  # Short outputs — we're measuring tok/s, not generation quality
 # Default fallback if not specified in MODEL_TABLE
 DEFAULT_BATCH_TOKENS = "8192"
@@ -155,12 +155,7 @@ def run_throughput(model, tp_size, backend_name="Default", output_dir=RESULTS_DI
     ])
     cmd.extend(dataset_args)
 
-    if backend_name == "AITER-Attn":
-        cmd.extend(["--attention-backend", "ROCM_ATTN"])
-    elif backend_name == "ROCm-Attn":
-        cmd.extend(["--attention-backend", "ROCM_ATTN"])
-    else:
-        cmd.extend(["--attention-backend", "TRITON_ATTN"])
+    cmd.extend(["--attention-backend", "TRITON_ATTN"])
 
     env = os.environ.copy()
     
@@ -180,8 +175,8 @@ def run_throughput(model, tp_size, backend_name="Default", output_dir=RESULTS_DI
         log(f"ERROR: Failed {model} [{backend_name}]: {type(e).__name__}: {e}")
 
 def print_summary(tps):
-    print(f"\n{'MODEL':<40} | {'TP':<2} | {'Triton':<8} | {'ROCm':<8} | {'AITER':<8}")
-    print("-" * 80)
+    print(f"\n{'MODEL':<40} | {'TP':<2} | {'Triton (tok/s)':<14}")
+    print("-" * 65)
     
     for m in MODELS_TO_RUN:
         msafe = m.replace("/", "_")
@@ -201,11 +196,8 @@ def print_summary(tps):
                 except: return "N/A"
 
             val1 = get_tok((RESULTS_DIR / "triton") / f"{prefix}_throughput.json")
-            val2 = get_tok((RESULTS_DIR / "rocm") / f"{prefix}_throughput.json")
-            val3 = get_tok((RESULTS_DIR / "aiter") / f"{prefix}_throughput.json")
-
-            print(f"{name_cell:<40} | {tp:<2} | {val1:<8} | {val2:<8} | {val3:<8}")
-    print("-" * 80)
+            print(f"{name_cell:<40} | {tp:<2} | {val1:<14}")
+    print("-" * 65)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -231,7 +223,5 @@ if __name__ == "__main__":
     for tp in valid_tp_args:
         for m in MODELS_TO_RUN:
             run_throughput(m, tp, "Triton-Attn", RESULTS_DIR / "triton")
-            run_throughput(m, tp, "ROCm-Attn", RESULTS_DIR / "rocm")
-            run_throughput(m, tp, "AITER-Attn", RESULTS_DIR / "aiter", {"VLLM_ROCM_USE_AITER": "1"})
             
     print_summary(valid_tp_args)

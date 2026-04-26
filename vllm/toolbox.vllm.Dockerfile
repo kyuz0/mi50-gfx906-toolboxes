@@ -103,10 +103,7 @@ WORKDIR /app/flash-attention
 RUN pip3 install ninja packaging wheel pybind11 psutil
 # Build
 ARG MAX_JOBS
-RUN sed -i 's/"native", "gfx90a", "gfx950", "gfx942"/"native", "gfx90a", "gfx950", "gfx942", "gfx906"/g' setup.py
 RUN MAX_JOBS=${MAX_JOBS:-$(nproc)} \
-    FLASH_ATTENTION_SKIP_CK_BUILD=FALSE \
-    GPU_ARCHS=gfx906 \
     python -m build --wheel --no-isolation --outdir /dist
 RUN pip3 install /dist/flash_attn-*.whl
 RUN ls /dist
