@@ -40,12 +40,27 @@ RESULTS_DIR.mkdir(exist_ok=True)
 def log(msg): print(f"\n[BENCH] {msg}")
 
 def get_gpu_count():
-    """Detects AMD GPUs, respecting HIP_VISIBLE_DEVICES or CUDA_VISIBLE_DEVICES."""
+    """Detects AMD GPUs, isolating gfx906 automatically."""
     for env_var in ["HIP_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES"]:
         if env_var in os.environ:
             val = os.environ[env_var].strip()
             if val:
                 return len(val.split(","))
+
+    try:
+        res = subprocess.run(["rocm-smi", "--showproductname"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0:
+            gfx906_gpus = []
+            for line in res.stdout.splitlines():
+                if "GFX Version" in line and "gfx906" in line:
+                    match = re.search(r"GPU\[(\d+)\]", line)
+                    if match:
+                        gfx906_gpus.append(match.group(1))
+            if gfx906_gpus:
+                os.environ["HIP_VISIBLE_DEVICES"] = ",".join(gfx906_gpus)
+                log(f"Isolated MI50 (gfx906) hardware to GPU(s): {','.join(gfx906_gpus)}")
+                return len(gfx906_gpus)
+    except: pass
 
     try:
         res = subprocess.run(["rocm-smi", "--showid", "--csv"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -122,6 +137,7 @@ def get_model_args(model, tp_size):
     if config.get("trust_remote"): cmd.append("--trust-remote-code")
     if config.get("enforce_eager"): cmd.append("--enforce-eager")
     if config.get("language_model_only"): cmd.append("--language-model-only")
+    return cmd
     
 def run_throughput(model, tp_size, backend_name="Default", output_dir=RESULTS_DIR, extra_env=None):
     if tp_size not in MODEL_TABLE[model]["valid_tp"]: return

@@ -26,12 +26,29 @@ def check_dependencies():
         sys.exit(1)
 
 def detect_gpus():
-    """Detects AMD GPUs, respecting HIP_VISIBLE_DEVICES or CUDA_VISIBLE_DEVICES."""
+    """Detects AMD GPUs, isolating gfx906 automatically."""
     for env_var in ["HIP_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES"]:
         if env_var in os.environ:
             val = os.environ[env_var].strip()
             if val:
                 return len(val.split(","))
+
+    try:
+        import re
+        res = subprocess.run(["rocm-smi", "--showproductname"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode == 0:
+            gfx906_gpus = []
+            for line in res.stdout.splitlines():
+                if "GFX Version" in line and "gfx906" in line:
+                    match = re.search(r"GPU\[(\d+)\]", line)
+                    if match:
+                        gfx906_gpus.append(match.group(1))
+            if gfx906_gpus:
+                os.environ["HIP_VISIBLE_DEVICES"] = ",".join(gfx906_gpus)
+                print(f"\n[INFO] Isolated MI50 (gfx906) hardware to GPU(s): {','.join(gfx906_gpus)}\n")
+                time.sleep(1)
+                return len(gfx906_gpus)
+    except: pass
 
     try:
         res = subprocess.run(["rocm-smi", "--showid", "--csv"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
