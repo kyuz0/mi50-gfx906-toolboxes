@@ -68,10 +68,11 @@ MODEL_TABLE = {
         "trust_remote": True,
         "valid_tp": [1],
         "max_num_seqs": "32",
-        "max_tokens": "16384",
-        "ctx": "20480",
+        "max_tokens": "4096",
+        "ctx": "8192",
         "language_model_only": True,
-        "enforce_eager": True
+        "enforce_eager": True,
+        "gpu_util": "0.98"
     }
 }
 
