@@ -28,6 +28,7 @@ ENV LD_LIBRARY_PATH=/opt/rocm/lib:/usr/local/lib:
 ENV VLLM_TARGET_DEVICE=rocm
 ENV FLASH_ATTENTION_TRITON_AMD_AUTOTUNE=0
 ENV FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
+ENV PYTHONNOUSERSITE=1
 
 # Install base tools
 RUN pip3 install --upgrade --ignore-installed '/opt/rocm/share/amd_smi' pyjwt && \
