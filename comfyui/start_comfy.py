@@ -43,17 +43,13 @@ def run_dialog(args):
             return None # User cancelled
 
 def clear_caches():
-    """Removes standard HF and PyTorch caches."""
-    cache_hf = Path.home() / ".cache" / "huggingface"
+    """Removes temporary ComfyUI caches."""
     cache_comfy = COMFY_DIR / "temp"
-    
-    print(f"Clearing cache at {cache_hf}...", end="", flush=True)
-    subprocess.run(["rm", "-rf", str(cache_hf)], check=False)
-    print(" Done.")
     
     print(f"Clearing cache at {cache_comfy}...", end="", flush=True)
     subprocess.run(["rm", "-rf", str(cache_comfy)], check=False)
     cache_comfy.mkdir(parents=True, exist_ok=True)
+    print(" Done.")
 def configure_and_launch(gpu_count):
     current_gpu = "0"
     current_port = PORT

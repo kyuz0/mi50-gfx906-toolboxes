@@ -15,7 +15,7 @@ WORKDIR /opt/ComfyUI
 # Python dependencies
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 RUN pip3 install --no-cache-dir -r requirements.txt && \
-    pip3 install --no-cache-dir pillow opencv-python-headless imageio imageio-ffmpeg scipy "huggingface_hub[hf_transfer]" pyyaml websocket-client
+    pip3 install --no-cache-dir pillow opencv-python-headless imageio imageio-ffmpeg hf scipy "huggingface_hub[hf_transfer]" pyyaml websocket-client
 
 # Essential Custom Nodes
 WORKDIR /opt/ComfyUI/custom_nodes
