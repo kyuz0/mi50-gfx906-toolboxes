@@ -178,15 +178,15 @@ All tests run with `NGL=99` and `FA=1`. (32k = PP2048 @ d32768, TG32 @ d32768)
 | llama-2-7b.Q4_0 | 3.56 GiB | 6.4.4 | 96.78 ± 0.05 | 118.33 ± 0.32 | +22.3% | 29.85 ± 0.00 | 27.96 ± 0.00 | -6.3% |
 | llama-2-7b.Q4_0 | 3.56 GiB | 7.2.1 | 95.62 ± 0.04 | 118.09 ± 0.24 | +23.5% | 29.68 ± 0.00 | 27.42 ± 0.00 | -7.6% |
 
-### vLLM Throughput
+### vLLM Throughput (MI50)
 | Model | TP | Requests | Total Tokens | Tokens/sec | Elapsed (sec) |
 | --- | --- | --- | --- | --- | --- |
-| Qwen_Qwen3.5-27B | 4 | 100 | 37807 | 48.46 | 780.23 |
-| Qwen_Qwen3.5-9B | 2 | 100 | 37807 | 153.55 | 246.21 |
-| Qwen_Qwen3.5-9B | 4 | 100 | 37807 | 211.04 | 179.15 |
-| cyankiwi_Qwen3.5-35B-A3B-AWQ-4bit| 4 | 100 | 37807 | 163.62 | 231.07 |
-| meta-llama_Meta-Llama-3.1-8B | 2 | 100 | 36104 | 229.25 | 157.48 |
-| meta-llama_Meta-Llama-3.1-8B | 4 | 100 | 36104 | 306.78 | 117.69 |
+| Qwen_Qwen3.5-9B | 1 | 500 | 367735 | 396.41 | 927.66 |
+| cyankiwi_Qwen3.6-27B-AWQ-INT4 | 1 | 500 | 367735 | 154.02 | 2387.51 |
+| cyankiwi_Qwen3.6-35B-A3B-AWQ-4bit | 1 | 500 | 367735 | 119.74 | 3071.22 |
+| cyankiwi_gemma-4-26B-A4B-it-AWQ-4bit | 1 | 500 | 371088 | 149.69 | 2479.04 |
+| cyankiwi_gemma-4-31B-it-AWQ-4bit | 1 | 500 | 371088 | 66.12 | 5612.72 |
+| meta-llama_Meta-Llama-3.1-8B-Instruct | 1 | 500 | 361361 | 451.42 | 800.50 |
 
 ---
 

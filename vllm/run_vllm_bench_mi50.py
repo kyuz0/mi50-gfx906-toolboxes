@@ -90,15 +90,22 @@ def nuke_vllm_cache():
 
 def get_dataset():
     data_path = Path("ShareGPT_V3_unfiltered_cleaned_split.json")
-    if data_path.exists(): return str(data_path)
+    if data_path.exists():
+        if data_path.stat().st_size > 100_000_000: # ~540MB expected
+            return str(data_path)
+        else:
+            log("Found corrupted/incomplete ShareGPT dataset. Re-downloading...")
+            data_path.unlink()
     
     log("Downloading ShareGPT dataset...")
     url = "https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json"
     try:
         r = requests.get(url, stream=True, timeout=15)
         r.raise_for_status()
-        with open(data_path, 'wb') as f:
+        tmp_path = data_path.with_suffix(".tmp")
+        with open(tmp_path, 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192): f.write(chunk)
+        tmp_path.rename(data_path)
         return str(data_path)
     except Exception as e:
         log(f"WARNING: ShareGPT download failed ({e}). using RANDOM.")
